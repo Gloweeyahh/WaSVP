@@ -108,7 +108,8 @@ export function parsePolicy(input: unknown): Result<TrustPolicy, PolicyError> {
   if (!blocked.ok) return blocked;
 
   let maxSizeBytes: number | null = null;
-  if (p.maxSizeBytes !== undefined) {
+  // null is what a parsed policy uses for "no limit", so parsing must accept it.
+  if (p.maxSizeBytes !== undefined && p.maxSizeBytes !== null) {
     if (
       typeof p.maxSizeBytes !== "number" ||
       !Number.isInteger(p.maxSizeBytes) ||
