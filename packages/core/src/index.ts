@@ -8,4 +8,5 @@ export * from "./runtime/run.ts";
 export * from "./service/audit.ts";
 export * from "./service/stores.ts";
 export * from "./service/service.ts";
+export * from "./api/http.ts";
 
