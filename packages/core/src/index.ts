@@ -9,4 +9,5 @@ export * from "./service/audit.ts";
 export * from "./service/stores.ts";
 export * from "./service/service.ts";
 export * from "./api/http.ts";
+export * from "./service/postgres.ts";
 
