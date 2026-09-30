@@ -12,7 +12,7 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "types": ["node"]
   },
   "include": ["src", "test"]
