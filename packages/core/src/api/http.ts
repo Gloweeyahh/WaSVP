@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { sha256Hex } from "../hash.ts";
 import type { Reason } from "../policy.ts";
@@ -40,6 +41,24 @@ interface ApiError {
 
 const MIN_KEY_LENGTH = 16;
 const HEX64 = /^[0-9a-f]{64}$/;
+
+/** The dashboard: plain files in packages/core/public, served by this same server. */
+const PUBLIC_DIR = new URL("../../public/", import.meta.url);
+const STATIC_FILES: Record<string, { file: string; type: string }> = {
+  "/": { file: "index.html", type: "text/html; charset=utf-8" },
+  "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
+  "/crypto.js": { file: "crypto.js", type: "text/javascript; charset=utf-8" },
+  "/app.css": { file: "app.css", type: "text/css; charset=utf-8" },
+};
+
+/** Only this site's own files may load or connect: no inline scripts, no third parties. */
+const PAGE_SECURITY_HEADERS = {
+  "content-security-policy":
+    "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "no-referrer",
+  "cache-control": "no-cache",
+};
 
 const STATUS: Record<ServiceErrorCode, number> = {
   INVALID_REQUEST: 400,
@@ -141,6 +160,15 @@ export function createApp(config: AppConfig): Server {
   const log = config.log ?? (() => undefined);
   const { service } = config;
 
+  const assets = new Map<string, { body: Buffer; type: string }>();
+  for (const [route, { file, type }] of Object.entries(STATIC_FILES)) {
+    try {
+      assets.set(route, { body: readFileSync(new URL(file, PUBLIC_DIR)), type });
+    } catch (error) {
+      log(`Dashboard file missing: ${file}`, error);
+    }
+  }
+
   function authenticate(req: IncomingMessage): ApiKeyConfig | null {
     const header = req.headers.authorization ?? "";
     const match = /^Bearer (.+)$/.exec(header);
@@ -156,6 +184,16 @@ export function createApp(config: AppConfig): Server {
     if (path === "/health") {
       if (method !== "GET") return sendError(res, { status: 405, code: "METHOD_NOT_ALLOWED", message: "Use GET." }, { allow: "GET" });
       return sendJson(res, 200, { ok: true });
+    }
+
+    // Dashboard files are public (they contain no secrets).
+    const asset = assets.get(path);
+    if (asset) {
+      if (method !== "GET" && method !== "HEAD") {
+        return sendError(res, { status: 405, code: "METHOD_NOT_ALLOWED", message: "Use GET." }, { allow: "GET, HEAD" });
+      }
+      res.writeHead(200, { "content-type": asset.type, ...PAGE_SECURITY_HEADERS });
+      return void res.end(method === "HEAD" ? undefined : asset.body);
     }
 
     // Authenticate before routing so unknown paths reveal nothing.
@@ -177,6 +215,12 @@ export function createApp(config: AppConfig): Server {
         message: e.message,
         ...(e.reasons ? { reasons: e.reasons } : {}),
       });
+
+    // GET /me: who am I?
+    if (path === "/me") {
+      if (method !== "GET") return notAllowed("GET");
+      return sendJson(res, 200, { actor: who.actor, role: who.role });
+    }
 
     // POST /modules: upload
     if (path === "/modules") {
