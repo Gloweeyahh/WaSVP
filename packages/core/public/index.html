@@ -1,1 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>WaSVP: verify before you run</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
 
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1.2 14.2-3.5-3.5 1.4-1.4 2.1 2.1 4.6-4.6 1.4 1.4-6 6Z"/></svg>
+      <div>
+        <h1>WaSVP</h1>
+        <p class="tagline">Verify before you run</p>
+      </div>
+    </div>
+    <span id="who" class="pill" role="status">Not connected</span>
+  </header>
+
+  <main id="main">
+    <!-- CONNECT -->
+    <section id="tab-connect" class="tab" aria-labelledby="h-connect">
+      <h2 id="h-connect">Connect</h2>
+      <div class="card">
+        <label for="api-key">API key</label>
+        <input id="api-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your admin or member key">
+        <p class="hint">Kept for this browser tab only. It is forgotten when you close the tab.</p>
+        <div class="row">
+          <button id="connect" class="btn primary" type="button">Connect</button>
+          <button id="disconnect" class="btn" type="button" hidden>Disconnect</button>
+        </div>
+      </div>
+
+      <h2 id="h-key">Your signing key</h2>
+      <div class="card" id="key-card" aria-labelledby="h-key"></div>
+    </section>
+
+    <!-- POLICY -->
+    <section id="tab-policy" class="tab" aria-labelledby="h-policy" hidden>
+      <h2 id="h-policy">Trust policy</h2>
+      <p class="lead">Decide exactly what is allowed to run. Anything you don't allow is blocked.</p>
+
+      <div class="card">
+        <label for="p-name">Policy name</label>
+        <input id="p-name" type="text" maxlength="100" value="My trust policy" autocomplete="off">
+      </div>
+
+      <div class="card">
+        <h3>Trusted signers</h3>
+        <p class="hint">Only modules signed by these keys can run. With none listed, nothing can run.</p>
+        <div id="l-signers"></div>
+        <label for="p-signer">Signer key ID</label>
+        <input id="p-signer" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="64 characters">
+        <div class="row">
+          <button id="add-signer" class="btn" type="button">Add</button>
+          <button id="add-my-key" class="btn" type="button">Add my key</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Allowed imports</h3>
+        <p class="hint">Powers a module may ask for. Leave empty to allow none.</p>
+        <div id="l-imports"></div>
+        <label for="p-imp-mod">Module</label>
+        <input id="p-imp-mod" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="env">
+        <label for="p-imp-name">Name</label>
+        <input id="p-imp-name" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="log">
+        <button id="add-import" class="btn" type="button">Add import</button>
+      </div>
+
+      <div class="card">
+        <h3>Limits and requirements</h3>
+        <label for="p-max">Largest allowed module (bytes, optional)</label>
+        <input id="p-max" type="number" inputmode="numeric" min="1" placeholder="e.g. 1048576">
+        <h3 class="sub">Required exports</h3>
+        <div id="l-exports"></div>
+        <label for="p-export">Export name</label>
+        <input id="p-export" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="run">
+        <button id="add-export" class="btn" type="button">Add export</button>
+      </div>
+
+      <div class="card">
+        <h3>Blocked modules</h3>
+        <p class="hint">Hashes that are always refused, even if correctly signed.</p>
+        <div id="l-blocked"></div>
+        <label for="p-block">Module hash</label>
+        <input id="p-block" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="64 characters">
+        <button id="add-block" class="btn" type="button">Block hash</button>
+      </div>
+
+      <details class="card">
+        <summary>See the policy as JSON</summary>
+        <pre id="p-json" tabindex="0"></pre>
+      </details>
+
+      <div class="card">
+        <button id="apply-policy" class="btn primary wide" type="button">Apply policy</button>
+        <p class="hint">Needs an admin key. Applying replaces the current policy.</p>
+        <div id="policy-result" role="status"></div>
+      </div>
+    </section>
+
+    <!-- MODULES -->
+    <section id="tab-modules" class="tab" aria-labelledby="h-modules" hidden>
+      <h2 id="h-modules">Modules</h2>
+
+      <div class="card">
+        <h3>1. Choose a module</h3>
+        <label for="m-file" class="btn wide filebtn">Choose a .wasm file</label>
+        <input id="m-file" class="visually-hidden" type="file" accept=".wasm,application/wasm">
+        <div id="m-info" role="status"></div>
+      </div>
+
+      <div class="card">
+        <h3>2. Sign it</h3>
+        <fieldset>
+          <legend class="visually-hidden">How to sign</legend>
+          <label class="choice"><input type="radio" name="sign-mode" value="mine" checked> Sign with my key in this browser</label>
+          <label class="choice"><input type="radio" name="sign-mode" value="paste"> I already have a signature (paste JSON)</label>
+        </fieldset>
+        <div id="m-paste" hidden>
+          <label for="m-sig">Signature JSON</label>
+          <textarea id="m-sig" rows="5" spellcheck="false" autocapitalize="off"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>3. Check and upload</h3>
+        <button id="upload" class="btn primary wide" type="button">Check against the policy</button>
+        <div id="m-verdict" role="status"></div>
+      </div>
+
+      <h2 id="h-mods-list">Modules this session</h2>
+      <div id="m-list"></div>
+
+      <div class="card">
+        <h3>Run by ID</h3>
+        <label for="run-id">Module ID</label>
+        <input id="run-id" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="64 characters">
+        <button id="run-by-id" class="btn" type="button">Open runner</button>
+      </div>
+    </section>
+
+    <!-- AUDIT -->
+    <section id="tab-audit" class="tab" aria-labelledby="h-audit" hidden>
+      <h2 id="h-audit">Audit trail</h2>
+      <div class="card">
+        <div id="chain" role="status">Not loaded yet.</div>
+        <button id="refresh-audit" class="btn wide" type="button">Refresh</button>
+      </div>
+      <div id="audit-list"></div>
+    </section>
+  </main>
+
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" data-go="connect" aria-current="page">Connect</button>
+    <button type="button" data-go="policy">Policy</button>
+    <button type="button" data-go="modules">Modules</button>
+    <button type="button" data-go="audit">Audit</button>
+  </nav>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
